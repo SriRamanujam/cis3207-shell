@@ -1,0 +1,114 @@
+=== PSEUDO CODE FOR IMPLEMENTING A REALLY BASIC AND PROBABLY UNUSABLE LINUX SHELL ===
+
+      
+char** build_argv(char* input):
+  initialize int index to 0;
+  create char **argv equal to (char**) malloc(sizeof(char*));
+  create char * copy equal to (char*) malloc(sizeof(char)*strlen(input)));
+  call strncpy(copy, input, strlen(input));
+  create char* token equal to strtok(copy, " ");
+  while (token is not NULL):
+    set argv[index] equal to  (char*) malloc(sizeof(char)*strlen(token)+1));
+    call strncpy(args[index], token, strlen(token)+1);
+    increment index by one;
+    set token equal to strtok(NULL, " ");
+    set argv equal to (char**) realloc(argv, sizeof(char*) * (index+1));
+  set argv[index] to NULL;
+  return argv;
+
+
+void parse_input(char* input, int IS_FORKING):
+  /* We have to process file descriptors first */
+  initialize char in to "<";
+  initialize char out to ">";
+  initialize char pipe to "|";
+  if ((strstr(input, &in)) != NULL):
+    initialize char[] splitArgs with split(input, in);
+    initialize int newstdin with open(splitArgs[1], O_RDONLY);
+    call close(0);
+    call dup(newstdin);
+    call close(newstdin);
+    create char ** argv with build_argv(splitArgs[0]);
+    if not IS_FORKING:
+      execvp(argv[0], argv);
+    else:
+      if calling fork() equals 0:
+        execvp(argv[0], argv);
+      else:
+        initialize int status equal to 0;
+        call wait(&status);
+  else if ((strstr(input, &out)) != NULL):
+    initialize char[] splitArgs with split(input, out);
+    create int newstdout, initialize with open(inptr, O_WRONLY|O_CREAT,S_IRWXU|S_IRWXG|S_IRWXO);
+    call close(1);
+    call dup(newstdout);
+    call close(newstdout);
+    create char ** argv with build_argv(splitArgs[0]);
+    if not IS_FORKING:
+      execvp(argv[0], argv);
+    else:
+      if calling fork() equals 0:
+        execvp(argv[0], argv);
+      else:
+        initialize int status equal to 0;
+        call wait(&status);
+  else if ((strstr(input, &pipe) != NULL):
+    initialize char[] splitArgs with split(input, pipe);
+    initialize char** left with build_argv(splitArgs[0]);
+    initialize char** right with build_argv(splitArgs[1]);
+    /* We initialize a pipe for the two processes here */
+    initialize int thePipe[2];
+    call pipe(thePipe);
+    initialize int pid;
+    /* Now we fork */
+    set pid equal to fork();
+    if (pid > 0):
+      call close(1);
+      call dup(thePipe[1]);
+      call execvp(left[0], left);
+    else if (pid == 0):
+      call close(0);
+      call dup(thePipe[0]);
+      call execvp(right[0], right);
+    else:
+      call printf("hooo boy something went wrong here");
+
+
+char[] split(char* input, char delim):
+  initialize char **result to NULL;
+  initialize size_t size;
+  initialize unsigned int index, i;
+  initialize char *ptr, *pstr;
+  set ptr equal to NULL;
+  set pstr equal to ptr;
+
+  while (pstr):
+    set ptr equal to strstr(pstr, delim);
+    set result equal to realloc(result, (index+1) * sizeof(char *));
+    set size equal to strlen(pstr) - ((ptr)?strlen(ptr):0);
+    initialize result[index] with malloc(size * sizeof(char));
+    call strncpy(result[index], pstr, size);
+    increment index by one;
+    if ptr is not NULL:
+      increment pstr by ptr+2;
+    else:
+      set pstr equal to NULL;
+
+  return result;
+
+  int main():
+    initialize int IS_FORKING to 0;
+    while (True):
+      call printf("Shell> ");
+      initialize char* input; // will need to malloc here before using
+      initialize char* argv; // will need to malloc before using
+      call fgets(input, MAX_SIZE, stdin); //MAX_SIZE will be defined as a constant
+      switch (input):
+        case ("exit"):
+          return 0; //success
+        case ("0x004"): // ctrl-d char
+          return 0; //success
+        default:
+          if last character of input is "&":
+            set IS_FORKING to 1;
+          call parse_input(input, IS_FORKING);
