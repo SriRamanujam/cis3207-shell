@@ -4,52 +4,65 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <sys/wait.h>
 
 #define MAX_SIZE 1024
 
 void parse_input(char *input, int forking);
-char** str_split(char *a_str, const char a_delim);
+char **str_split(char *a_str, const char a_delim);
 char **build_argv(char *input);
 
-void parse_input(char *input, int forking) {
+void parse_input(char *input, int forking)
+{
 
     size_t len = strlen(input) - 1;
-    if (input[len] == '\n') {
+    if (input[len] == '\n')
+    {
         input[len] = '\0';
     }
-    if (strstr(input, "<") != NULL) {
+    if (strstr(input, "<") != NULL)
+    {
         printf("found a <\n");
         char **splitInArgs = str_split(input, '<'); // split is internal function!
         int newstdin = open(splitInArgs[1], O_RDONLY);
         dup2(newstdin, 0);
         char **argv = build_argv(splitInArgs[0]); // build_argv is internal function!
-        if (forking == 0) {
+        if (forking == 0)
+        {
             execvp(argv[0], argv);
         }
-        else {
-            if (fork() == 0) {
+        else
+        {
+            if (fork() == 0)
+            {
                 execvp(argv[0], argv);
             }
-            else {
+            else
+            {
                 int status = 0;
                 wait(&status);
             }
         }
     }
-    else if (strstr(input, ">") != NULL) {
+    else if (strstr(input, ">") != NULL)
+    {
         printf("found a >\n");
         char **splitOutArgs = str_split(input, '>');
         int newstdout = open(splitOutArgs[1], O_WRONLY|O_CREAT,S_IRWXU|S_IRWXG|S_IRWXO);
         dup2(newstdout, 1);
         char **argv = build_argv(splitOutArgs[0]);
-        if (forking == 0) {
+        if (forking == 0)
+        {
             execvp(argv[0], argv);
         }
-        else {
-            if (fork() == 0) {
+        else
+        {
+            if (fork() == 0)
+            {
                 execvp(argv[0], argv);
             }
-            else {
+            else
+            {
                 int status = 0;
                 wait(&status);
             }
@@ -65,46 +78,58 @@ void parse_input(char *input, int forking) {
          pipe(thePipe);
          /* Forking for the pipe */
          int pid = fork();
-         if (pid > 0) {
+         if (pid > 0)
+         {
              dup2(thePipe[1], 1);
              execvp(left[0], left);
          }
-         else if (pid == 0) {
+         else if (pid == 0)
+         {
              dup2(thePipe[0], 0);
              execvp(right[0], right);
          }
-         else {
+         else
+         {
              printf("Something has gone very wrong\n");
          }
     }
-    else {
+    else
+    {
         char **argv = build_argv((char*) input); // build_argv is internal function!
 
-        if (forking == 0) {
+        if (forking == 0)
+        {
             execvp(argv[0], argv);
-            return;
         }
-        else {
-            if (fork() == 0) {
+        else
+        {
+            printf("Forking time");
+            if (fork() == 0)
+            {
                 execvp(argv[0], argv);
             }
-            else {
+            else
+            {
                 int status = 0;
                 wait(&status);
-                return;
             }
         }
     }
+    return;
 }
 
-/* Code somewhat works */
-char **build_argv(char *input) {
+/* This code works fine */
+char **build_argv(char *input)
+{
     int i;
     int index = 0;
+
     char **argv = (char**) malloc(sizeof(char*));
     char *copy = (char*) malloc(sizeof(char) * strlen(input));
+
     strncpy(copy, input, strlen(input));
     char *token = strtok(copy, " ");
+
     while (token != NULL) {
         argv[index] = (char*) malloc(sizeof(char) * strlen(token) + 1);
         strncpy(argv[index], token, strlen(token) + 1);
@@ -117,12 +142,12 @@ char **build_argv(char *input) {
 }
 
 /* This hasn't been tested, look into it */
-char** str_split(char* a_str, const char a_delim)
+char **str_split(char *a_str, const char a_delim)
 {
-    char** result    = 0;
+    char **result    = 0;
     size_t count     = 0;
-    char* tmp        = a_str;
-    char* last_comma = 0;
+    char *tmp        = a_str;
+    char *lastComma = 0;
     char delim[2];
     delim[0] = a_delim;
     delim[1] = 0;
@@ -133,24 +158,24 @@ char** str_split(char* a_str, const char a_delim)
         if (a_delim == *tmp)
         {
             count++;
-            last_comma = tmp;
+            lastComma = tmp;
         }
         tmp++;
     }
 
     /* Add space for trailing token. */
-    count += last_comma < (a_str + strlen(a_str) - 1);
+    count += lastComma < (a_str + strlen(a_str) - 1);
 
     /* Add space for terminating null string so caller
        knows where the list of returned strings ends. */
     count++;
 
-    result = malloc(sizeof(char*) * count);
+    result = (char**) malloc(sizeof(char*) * count);
 
     if (result)
     {
         size_t idx  = 0;
-        char* token = strtok(a_str, delim);
+        char *token = strtok(a_str, delim);
 
         while (token)
         {
@@ -168,20 +193,24 @@ char** str_split(char* a_str, const char a_delim)
 int main(void)
 {
     int forking;
-    while(1) {
+    while(1)
+    {
         forking = 0;
         printf("shell> ");
-        char *input = malloc(sizeof(char) * MAX_SIZE);
+        char *input = (char*) malloc(sizeof(char) * MAX_SIZE);
         char *output = fgets(input, MAX_SIZE, stdin);
-        if (feof(stdin) || (strcmp(output, "exit\n") == 0)) {
+        if (feof(stdin) || (strcmp(output, "exit\n") == 0))
+        {
             printf("Exiting!\n");
             exit(0);
         }
         int len = strlen(output);
         const char *lastTwoChars = &output[len-2];
-        if (strcmp(lastTwoChars, "&\n") == 0) {
+        if (strcmp(lastTwoChars, "&\n") == 0)
+        {
             forking = 1;
         }
         parse_input(output, forking);
+        //printf(output);
     }
 }
