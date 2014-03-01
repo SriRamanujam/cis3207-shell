@@ -23,7 +23,7 @@ void parse_input(char *input, int forking)
     if (strstr(input, "<") != NULL)
     {
         printf("found a <\n");
-        char **splitInArgs = str_split(input, '<'); // split is internal function!
+        char **splitInArgs = str_split(input, '<'); // str_split is internal function!
         int newstdin = open(splitInArgs[1], O_RDONLY);
         dup2(newstdin, 0);
         char **argv = build_argv(splitInArgs[0]); // build_argv is internal function!
@@ -96,23 +96,14 @@ void parse_input(char *input, int forking)
     else
     {
         char **argv = build_argv((char*) input); // build_argv is internal function!
-
-        if (forking == 0)
+        if (fork() == 0)
         {
             execvp(argv[0], argv);
         }
         else
         {
-            printf("Forking time");
-            if (fork() == 0)
-            {
-                execvp(argv[0], argv);
-            }
-            else
-            {
-                int status = 0;
-                wait(&status);
-            }
+            int status = 0;
+            wait(&status);
         }
     }
     return;
@@ -121,13 +112,12 @@ void parse_input(char *input, int forking)
 /* This code works fine */
 char **build_argv(char *input)
 {
-    int i;
     int index = 0;
 
     char **argv = (char**) malloc(sizeof(char*));
-    char *copy = (char*) malloc(sizeof(char) * strlen(input));
+    char *copy = (char*) malloc(sizeof(char) * (strlen(input) + 1));
 
-    strncpy(copy, input, strlen(input));
+    strncpy(copy, input, strlen(input) + 1);
     char *token = strtok(copy, " ");
 
     while (token != NULL) {
@@ -144,9 +134,9 @@ char **build_argv(char *input)
 /* This hasn't been tested, look into it */
 char **str_split(char *a_str, const char a_delim)
 {
-    char **result    = 0;
-    size_t count     = 0;
-    char *tmp        = a_str;
+    char **result = 0;
+    size_t count = 0;
+    char *tmp = a_str;
     char *lastComma = 0;
     char delim[2];
     delim[0] = a_delim;
@@ -202,6 +192,7 @@ int main(void)
         if (feof(stdin) || (strcmp(output, "exit\n") == 0))
         {
             printf("Exiting!\n");
+            free(input);
             exit(0);
         }
         int len = strlen(output);
@@ -213,4 +204,6 @@ int main(void)
         parse_input(output, forking);
         //printf(output);
     }
+    printf("Program done!");
+    return 0;
 }
