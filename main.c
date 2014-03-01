@@ -27,21 +27,14 @@ void parse_input(char *input, int forking)
         int newstdin = open(splitInArgs[1], O_RDONLY);
         dup2(newstdin, 0);
         char **argv = build_argv(splitInArgs[0]); // build_argv is internal function!
-        if (forking == 0)
+        if (fork() == 0)
         {
             execvp(argv[0], argv);
         }
         else
         {
-            if (fork() == 0)
-            {
-                execvp(argv[0], argv);
-            }
-            else
-            {
-                int status = 0;
-                wait(&status);
-            }
+            int status = 0;
+            wait(&status);
         }
     }
     else if (strstr(input, ">") != NULL)
@@ -51,21 +44,14 @@ void parse_input(char *input, int forking)
         int newstdout = open(splitOutArgs[1], O_WRONLY|O_CREAT,S_IRWXU|S_IRWXG|S_IRWXO);
         dup2(newstdout, 1);
         char **argv = build_argv(splitOutArgs[0]);
-        if (forking == 0)
+        if (fork() == 0)
         {
             execvp(argv[0], argv);
         }
         else
         {
-            if (fork() == 0)
-            {
-                execvp(argv[0], argv);
-            }
-            else
-            {
-                int status = 0;
-                wait(&status);
-            }
+            int status = 0;
+            wait(&status);
         }
     }
     else if (strstr(input, "|") != NULL) {
