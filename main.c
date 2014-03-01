@@ -22,34 +22,34 @@ void parse_input(char *input, int forking)
     }
     if (strstr(input, "<") != NULL)
     {
-        printf("found a <\n");
         char **splitInArgs = str_split(input, '<'); // str_split is internal function!
         int newstdin = open(splitInArgs[1], O_RDONLY);
-        dup2(newstdin, 0);
         char **argv = build_argv(splitInArgs[0]); // build_argv is internal function!
         if (fork() == 0)
         {
+            dup2(newstdin, 0);
             execvp(argv[0], argv);
         }
         else
         {
+            close(newstdin);
             int status = 0;
             wait(&status);
         }
     }
     else if (strstr(input, ">") != NULL)
     {
-        printf("found a >\n");
         char **splitOutArgs = str_split(input, '>');
-        int newstdout = open(splitOutArgs[1], O_WRONLY|O_CREAT,S_IRWXU|S_IRWXG|S_IRWXO);
-        dup2(newstdout, 1);
+        int newstdout = open(splitOutArgs[1], O_WRONLY|O_CREAT,S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
         char **argv = build_argv(splitOutArgs[0]);
         if (fork() == 0)
         {
+            dup2(newstdout, 1);
             execvp(argv[0], argv);
         }
         else
         {
+            close(newstdout);
             int status = 0;
             wait(&status);
         }
@@ -134,6 +134,7 @@ char **build_argv(char *input)
         argv = (char**) realloc(argv, sizeof(char*) * (index+1));
     }
     argv[index] = NULL;
+    free(copy);
     return argv;
 }
 
@@ -208,7 +209,6 @@ int main(void)
             forking = 1;
         }
         parse_input(output, forking);
-        //printf(output);
     }
     printf("Program done!");
     return 0;
