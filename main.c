@@ -55,29 +55,49 @@ void parse_input(char *input, int forking)
         }
     }
     else if (strstr(input, "|") != NULL) {
-         printf("found a |\n");
-         char **splitPipeArgs = str_split(input, '|');
-         char **left = build_argv(splitPipeArgs[0]);
-         char **right = build_argv(splitPipeArgs[1]);
-         /* Pipe initialization */
-         int thePipe[2];
-         pipe(thePipe);
-         /* Forking for the pipe */
-         int pid = fork();
-         if (pid > 0)
-         {
-             dup2(thePipe[1], 1);
-             execvp(left[0], left);
-         }
-         else if (pid == 0)
-         {
-             dup2(thePipe[0], 0);
-             execvp(right[0], right);
-         }
-         else
-         {
-             printf("Something has gone very wrong\n");
-         }
+        char **splitPipeArgs = str_split(input, '|');
+        char **left = build_argv(splitPipeArgs[0]);
+        char **right = build_argv(splitPipeArgs[1]);
+
+        /* Pipe initialization */
+        int thePipe[2];
+        pipe(thePipe);
+
+        /* Forking for the pipe */
+        int PID = fork();
+        if (PID > 0)
+        {
+            /* This is the parent process after forking for left-side child */
+            close(thePipe[1]); // close pipe in before forking to prevent hangs
+
+            /* Executing fork for right-side child process */
+            int PID2 = fork();
+            if (PID2 > 0)
+            {
+                /* This is the parent process after forking for right-side child */
+                close(thePipe[0]); // close pipe out because it's no longer needed
+
+                int status2 = 0;
+                wait(&status2); // wait on right-side child to exit
+            }
+            else
+            {
+                /* This is the right-side child's process */
+                dup2(thePipe[0], 0); // remake stdin to pipe
+                execvp(right[0], right);
+            }
+            close(thePipe[0]); // after right-side child exits, close pipe out for parent
+
+            int status = 0;
+            wait(&status); // wait on left-side child to exit
+        }
+        else
+        {
+            /* This is the left-side child's process */
+            close(thePipe[0]); // close pipe out since it is not needed here
+            dup2(thePipe[1], 1); // remake stdout to pipe in
+            execvp(left[0], left);
+        }
     }
     else
     {
