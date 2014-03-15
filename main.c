@@ -7,24 +7,33 @@
 #include <ctype.h>
 #include <sys/wait.h>
 
+/*
+ * Max size here is basically just the maximum size of the input buffer. 
+ * We could set it to whatever we want, but I've gone with 1024.
+ */
 #define MAX_SIZE 1024
 
 void parse_input(char *input, int forking);
 char **str_split(char *a_str, const char a_delim);
 char **build_argv(char *input);
 void process_command(char *input);
-void process_input(char *input);
-void process_output(char *input);
+void process_fd_in(char *input);
+void process_fd_out(char *input);
 void process_pipe(char *input);
 void trim_whitespace(char *in, char *out);
 
-
-void process_input(char *input)
+/*
+ * process_fd_in takes in a pointer to the beginning of the input string, 
+ * splits the input string using split_args() on the '<' character, trims whitespace,
+ * opens up the proper file handler, builds argv from the "command" part of the split
+ * string array, and then does the fork to execute the process.
+ */
+void process_fd_in(char *input)
 {
-    char **splitInArgs = str_split(input, '<'); // str_split is internal function!
+    char **splitInArgs = str_split(input, '<'); 
     trim_whitespace(splitInArgs[1], splitInArgs[1]);
     int newstdin = open(splitInArgs[1], O_RDONLY);
-    char **argv = build_argv(splitInArgs[0]); // build_argv is internal function!
+    char **argv = build_argv(splitInArgs[0]); 
     if (fork() == 0)
     {
         dup2(newstdin, 0);
@@ -39,7 +48,12 @@ void process_input(char *input)
     return;
 }
 
-void process_output(char *input)
+/* process_fd_out takes in a string, splits it on the character '>' using 
+ * split_args(), trims whitespace, opens up the proper file handler, builds 
+ * argv from the "command" part of the split string array, then does the fork
+ * to execute the process.
+ */
+void process_fd_out(char *input)
 {
     char **splitOutArgs = str_split(input, '>');
     trim_whitespace(splitOutArgs[1], splitOutArgs[1]);
@@ -59,6 +73,11 @@ void process_output(char *input)
     return;
 }
 
+/* process_pipe() handles situations when a command features a pipe. It splits
+ * the initial input string into a left and right side for each command, then
+ * builds argv for each side and handles the forks needed. Afterwards, it cleans
+ * up the pipe.
+ */
 void process_pipe(char *input)
 {
     char **splitPipeArgs = str_split(input, '|');
@@ -107,6 +126,11 @@ void process_pipe(char *input)
     return;
 }
 
+/* 
+ * process_command() is the basic naive case, for when you just want to execute
+ * a program from within the shell. It does nothing more than build argv from 
+ * the input and start execution.
+ */
 void process_command(char *input)
 {
     char **argv = build_argv(input); // build_argv is internal function!
@@ -121,7 +145,30 @@ void process_command(char *input)
     }
 }
 
-
+/*
+ * trim_whitespace() is basically a small wrapper around the C library function
+ * isspace() that strips leading and trailing spaces. It first trims leading 
+ * whitespace, then checks every character in the rest of the string to see if 
+ * it is a space. If it is not, it updates the pointer char *end to point to 
+ * that character. Once the loop has completed going through the string, the
+ * function sets the terminator at the location of char *end. 
+ * 
+ * For example, if we have the string "   hello!  ", this function will first
+ * update the pointer char *in to point at at the "h" instead of at the first " ".
+ * It will then loop through the characters "hello!  ". If the character c that
+ * loop is looking at is not a space, it will update char* out to point to it, just
+ * in case that character is the actual non-whitespace character in the string.
+ * 
+ * After the loop is finished, we set the terminator at the location of char* end,
+ * which right now is pointing at the first trailing whitespace character, due to
+ * the fact that we do our pointer increment before checking isspace(). 
+ * 
+ * So now, char* in (ie, the calling function's string-to-be-trimmed's pointer) is 
+ * pointing at the first non-whitespace character.
+ * 
+ * Effectively, this is a general solution using pointers to doing in-place
+ * whitespace trimming. 
+ */
 void trim_whitespace(char *in, char *out)
 {
     char *end = out;
@@ -144,9 +191,14 @@ void trim_whitespace(char *in, char *out)
         }
     }
 
-    *end = '\0'; // once out of the loop, set terminator
+    *end = '\0'; // once out of the loop, set terminator.
 }
 
+/*
+ * This is the big function that handles the delegation of the program.
+ * All it really does is first terminate the string with a \0 if it ends with a
+ * \n, then use strstr() to check what case to handle, and handles double-forking. 
+ */
 void parse_input(char *input, int forking)
 {
 
@@ -155,13 +207,13 @@ void parse_input(char *input, int forking)
     {
         input[len] = '\0';
     }
-    if (strstr(input, "<") != NULL)
+    if (strstr(input, "<") != NULL) // handles <
     {
         if (forking == 1)
         {
             if (fork() == 0)
             {
-                process_input(input);
+                process_fd_in(input);
             }
             else
             {
@@ -170,16 +222,16 @@ void parse_input(char *input, int forking)
         }
         else
         {
-            process_input(input);
+            process_fd_in(input);
         }
     }
-    else if (strstr(input, ">") != NULL)
+    else if (strstr(input, ">") != NULL) // handles >
     {
         if (forking == 1)
         {
             if (fork() == 0)
             {
-                process_output(input);
+                process_fd_out(input);
             }
             else
             {
@@ -188,10 +240,10 @@ void parse_input(char *input, int forking)
         }
         else
         {
-            process_output(input);
+            process_fd_out(input);
         }
     }
-    else if (strstr(input, "|") != NULL)
+    else if (strstr(input, "|") != NULL) //handles |
     {
         if (forking == 1)
         {
@@ -209,13 +261,14 @@ void parse_input(char *input, int forking)
             process_pipe(input);
         }
     }
-    else
+    else // the default case
     {
         if (forking == 1)
         {
             if (fork() == 0)
             {
-                process_command(input);
+                char **argv = build_argv(input);
+                execvp(argv[0], argv);
             }
             else
             {
@@ -227,10 +280,14 @@ void parse_input(char *input, int forking)
             process_command(input);
         }
     }
+    free(argv); // here we free argv because it's no longer needed
     return;
 }
 
-/* This code works fine */
+/* build_argv builds **argv, essentially, from a string containing a command. 
+ * we malloc() our argv array and our copy, then use strtok() to split up
+ * the input string. 
+ */
 char **build_argv(char *input)
 {
     int index = 0;
@@ -253,7 +310,9 @@ char **build_argv(char *input)
     return argv;
 }
 
-/* This hasn't been tested, look into it */
+/*
+ * str_split() returns a string array split on a deliminator character. 
+ */
 char **str_split(char *a_str, const char a_delim)
 {
     char **result = 0;
@@ -302,6 +361,11 @@ char **str_split(char *a_str, const char a_delim)
     return result;
 }
 
+/*
+ * The main function handles displaying the prompt, and reading in input from
+ * the user. It also handles watching for the two exit conditions, and cleaning
+ * up accordingly.
+ */
 int main(void)
 {
     int forking;
@@ -311,7 +375,7 @@ int main(void)
         printf("shell> ");
         char *input = (char*) malloc(sizeof(char) * MAX_SIZE);
         char *output = fgets(input, MAX_SIZE, stdin);
-        if (feof(stdin) || (strcmp(output, "exit\n") == 0))
+        if (feof(stdin) || (strcmp(output, "exit\n") == 0)) // if we get ctrl-d or "exit"
         {
             printf("Exiting!\n");
             free(input);
@@ -319,10 +383,10 @@ int main(void)
         }
         int len = strlen(output);
         const char *lastTwoChars = &output[len-2];
-        if (strcmp(lastTwoChars, "&\n") == 0)
+        if (strcmp(lastTwoChars, "&\n") == 0) // if we detect an & at the end of the command
         {
-            forking = 1;
-            output[len-2] = '\0';
+            forking = 1; // set forking
+            output[len-2] = '\0'; // terminate the string before the & so that we don't pass that onto our parser
         }
         parse_input(output, forking);
     }
